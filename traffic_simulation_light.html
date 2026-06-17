@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traffic Signal AI — Full Simulator | SW 303</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+/* ═══════════════════════════════════════════
+   RESET & TOKENS
+═══════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:      #F7F6F3;
+  --bg2:     #FFFFFF;
+  --bg3:     #F0EEE9;
+  --bg4:     #E8E5DF;
+  --border:  rgba(0,0,0,.07);
+  --border2: rgba(0,0,0,.11);
+  --text:    #1A1A24;
+  --text2:   #5A5A6E;
+  --text3:   #9A9AAE;
+  --N:       #2563EB;  /* North  - blue  */
+  --S:       #059669;  /* South  - green */
+  --E:       #D97706;  /* East   - amber */
+  --W:       #DC2626;  /* West   - red   */
+  --cyan:    #1A1A24;
+  --teal:    #D9381E;
+  --green:   #059669;
+  --amber:   #D97706;
+  --red:     #DC2626;
+  --purple:  #7C3AED;
+  --accent:  #D9381E;
+  --r: 10px;
+}
+
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+
+/* ═══════════════════════════════════════════
+   LAYOUT SHELL
+═══════════════════════════════════════════ */
+.app{display:grid;grid-template-rows:auto 1fr;height:100vh;max-height:100vh;overflow:hidden}
+
+/* HEADER */
+.hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 20px;
+  background:var(--bg2);
+  border-bottom:1px solid var(--border2);
+  flex-shrink:0;
+}
+.hdr-left{display:flex;align-items:center;gap:14px}
+.hdr-logo{
+  font-family:'Syne',sans-serif;font-size:16px;font-weight:800;
+  color:var(--text);
+  letter-spacing:.01em;
+}
+.hdr-sub{font-size:11px;color:var(--text3);font-family:'Space Mono',monospace}
+.hdr-badges{display:flex;gap:8px}
+.badge{font-family:'Space Mono',monospace;font-size:10px;padding:3px 10px;border-radius:20px}
+.badge-blue{background:rgba(37,99,235,.08);color:#1D4ED8;border:1px solid rgba(37,99,235,.18)}
+.badge-teal{background:rgba(217,56,30,.08);color:var(--accent);border:1px solid rgba(217,56,30,.2)}
+.badge-green{background:rgba(5,150,105,.08);color:var(--green);border:1px solid rgba(5,150,105,.2)}
+
+/* MAIN BODY */
+.body{display:grid;grid-template-columns:260px 1fr 300px;height:100%;overflow:hidden}
+
+/* ═══════════════════════════════════════════
+   LEFT PANEL — CONTROLS
+═══════════════════════════════════════════ */
+.panel-left{
+  background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;gap:0;overflow-y:auto;
+}
+.panel-left::-webkit-scrollbar{width:3px}
+.panel-left::-webkit-scrollbar-thumb{background:var(--bg4)}
+
+.section{border-bottom:1px solid var(--border);padding:14px 16px}
+.section-title{font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--text3);font-family:'Space Mono',monospace;margin-bottom:12px}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;background:var(--bg3);border-radius:8px;padding:3px;margin-bottom:14px}
+.tab{flex:1;padding:5px 0;font-size:11px;font-weight:600;text-align:center;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--text2);transition:all .2s}
+.tab.active{background:var(--bg2);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+/* Selects & Inputs */
+.field{margin-bottom:10px}
+.field label{font-size:11px;color:var(--text2);display:block;margin-bottom:5px}
+select,input[type=range]{
+  width:100%;background:var(--bg3);border:1px solid var(--border2);
+  color:var(--text);border-radius:6px;font-family:inherit;font-size:12px;
+}
+select{padding:7px 10px;cursor:pointer;appearance:none}
+select:focus{outline:1px solid var(--accent)}
+input[type=range]{-webkit-appearance:none;height:4px;border:none;outline:none;cursor:pointer;margin-top:3px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--accent);cursor:pointer}
+.range-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.range-val{font-family:'Space Mono',monospace;font-size:11px;color:var(--accent)}
+
+/* Buttons */
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.btn{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;padding:7px 10px;border-radius:7px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;transition:all .15s;text-align:center}
+.btn:hover{background:var(--bg4);color:var(--text)}
+.btn.active{background:rgba(217,56,30,.08);color:var(--accent);border-color:rgba(217,56,30,.25)}
+.btn.primary{background:rgba(217,56,30,.08);color:var(--accent);border-color:rgba(217,56,30,.25)}
+.btn.primary:hover{background:rgba(217,56,30,.15)}
+.btn.train{background:rgba(5,150,105,.07);color:var(--green);border-color:rgba(5,150,105,.2)}
+.btn.train:hover{background:rgba(5,150,105,.14)}
+.btn.train.done{background:rgba(5,150,105,.12);color:var(--green)}
+.btn.danger{background:rgba(239,68,68,.08);color:var(--red);border-color:rgba(239,68,68,.2)}
+.btn.danger:hover{background:rgba(239,68,68,.16)}
+.btn-full{width:100%;margin-top:6px}
+
+/* Lambda sliders per lane */
+.lambda-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.lane-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.lambda-row label{font-size:11px;color:var(--text2);width:14px;flex-shrink:0}
+.lambda-row input{flex:1}
+.lambda-row .rv{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);width:30px;text-align:right}
+
+/* Q-table vis */
+.qtable-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;margin-top:8px}
+.qt-cell{height:16px;border-radius:2px;background:var(--bg3);position:relative;overflow:hidden}
+.qt-bar{position:absolute;bottom:0;left:0;width:100%;border-radius:2px;transition:height .4s}
+
+/* Training progress */
+.train-bar-bg{background:rgba(255,255,255,.05);border-radius:3px;height:5px;margin:6px 0;overflow:hidden}
+.train-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),#f04a2e);border-radius:3px;transition:width .2s}
+.train-stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.ts{text-align:center;background:var(--bg3);border-radius:6px;padding:6px 4px}
+.ts-val{font-family:'Space Mono',monospace;font-size:12px;color:var(--text)}
+.ts-lbl{font-size:9px;color:var(--text3);margin-top:2px}
+
+/* ═══════════════════════════════════════════
+   CENTER — CANVAS
+═══════════════════════════════════════════ */
+.panel-center{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:20px;position:relative;
+  background:var(--bg);
+}
+
+.canvas-wrap{position:relative;width:min(500px,90vw);aspect-ratio:1}
+canvas#road{width:100%;height:100%;display:block;border-radius:12px}
+
+/* Legend bar */
+.legend-bar{display:flex;gap:14px;margin-top:12px;justify-content:center;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.leg-dot{width:9px;height:9px;border-radius:2px}
+
+/* Bottom chart */
+.chart-wrap{width:min(500px,90vw);height:100px;margin-top:12px;position:relative}
+
+/* ═══════════════════════════════════════════
+   RIGHT PANEL — METRICS + MATH
+═══════════════════════════════════════════ */
+.panel-right{
+  background:var(--bg2);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.panel-right::-webkit-scrollbar{width:3px}
+.panel-right::-webkit-scrollbar-thumb{background:var(--bg4)}
+
+/* Metric cards */
+.metrics-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:14px 16px}
+.metric{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.metric-lbl{font-size:9px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.metric-val{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--text);line-height:1}
+.metric-sub{font-size:10px;color:var(--text3);margin-top:2px}
+
+/* Improve badge */
+.improve{font-family:'Space Mono',monospace;font-size:11px;padding:8px 14px;border-radius:7px;margin:0 16px 12px;text-align:center;transition:all .3s}
+.improve.good{background:rgba(5,150,105,.07);color:#065F46;border:1px solid rgba(5,150,105,.2)}
+.improve.bad{background:rgba(220,38,38,.06);color:#991B1B;border:1px solid rgba(220,38,38,.15)}
+.improve.neutral{background:var(--bg3);color:var(--text2);border:1px solid var(--border)}
+
+/* Queue bars */
+.qbars{padding:0 16px 14px;display:flex;flex-direction:column;gap:7px}
+.qbar-row{display:flex;align-items:center;gap:8px}
+.qbar-name{font-family:'Space Mono',monospace;font-size:10px;width:14px;flex-shrink:0}
+.qbar-bg{flex:1;background:var(--bg3);border-radius:3px;height:10px;overflow:hidden}
+.qbar-fill{height:100%;border-radius:3px;transition:width .3s}
+.qbar-v{font-family:'Space Mono',monospace;font-size:10px;color:var(--text2);width:26px;text-align:right}
+
+/* Phase bar */
+.phase-wrap{padding:0 16px 14px}
+.phase-bar{display:flex;height:24px;border-radius:6px;overflow:hidden;gap:2px}
+.phase-seg{display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:rgba(255,255,255,.9);border-radius:4px;transition:flex .5s cubic-bezier(.4,0,.2,1);overflow:hidden;min-width:0;font-family:'Space Mono',monospace}
+
+/* Math box */
+.math-box{
+  margin:0 16px 14px;
+  background:var(--bg3);border:1px solid rgba(217,56,30,.12);
+  border-radius:8px;padding:12px 14px;
+}
+.math-title{font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;font-family:'Space Mono',monospace}
+.math-eq{font-family:'Space Mono',monospace;font-size:11px;color:var(--text);margin-bottom:4px}
+.math-row{display:flex;justify-content:space-between;font-size:10px;padding:3px 0;border-bottom:1px solid var(--border)}
+.math-row:last-child{border-bottom:none}
+.math-k{color:var(--text2)}
+.math-v{font-family:'Space Mono',monospace;color:var(--text)}
+
+/* Results table */
+.res-table{margin:0 16px 14px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.res-row{display:grid;grid-template-columns:1fr 52px 52px 62px;font-size:10px;border-bottom:1px solid var(--border)}
+.res-row:last-child{border-bottom:none}
+.res-row.hdr{background:var(--bg4);font-weight:700;font-family:'Space Mono',monospace;font-size:9px;color:var(--text2)}
+.res-row div{padding:6px 8px}
+.res-row div:not(:first-child){text-align:center;font-family:'Space Mono',monospace}
+.col-fixed{color:var(--red)}
+.col-rl{color:var(--green)}
+.col-imp{color:var(--amber)}
+
+/* LP box */
+.lp-box{margin:0 16px 14px;background:var(--bg3);border:1px solid rgba(124,58,237,.12);border-radius:8px;padding:12px 14px}
+.lp-title{font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--purple);margin-bottom:8px;font-family:'Space Mono',monospace}
+.lp-line{font-family:'Space Mono',monospace;font-size:10px;color:var(--text);padding:2px 0}
+.lp-line.dim{color:var(--text2)}
+.lp-line.hi{color:var(--purple)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ═══ HEADER ═══ -->
+<header class="hdr">
+  <div class="hdr-left">
+    <div>
+      <div class="hdr-logo">🚦 Traffic Signal AI</div>
+      <div class="hdr-sub">SW 303 · Queue Theory + Q-Learning Reinforcement Learning</div>
+    </div>
+  </div>
+  <div class="hdr-badges">
+    <div class="badge badge-blue" id="modeBadge">Q-Learning Mode</div>
+    <div class="badge badge-teal" id="trainBadge">Untrained</div>
+    <div class="badge badge-green" id="epsBadge">ε = 1.00</div>
+  </div>
+</header>
+
+<!-- ═══ BODY ═══ -->
+<div class="body">
+
+<!-- ══════════════════════════
+     LEFT PANEL
+══════════════════════════ -->
+<div class="panel-left">
+
+  <!-- MODE -->
+  <div class="section">
+    <div class="section-title">Controller Mode</div>
+    <div class="tabs">
+      <button class="tab active" id="tabRL"    onclick="setMode('rl')">Q-Learning</button>
+      <button class="tab"        id="tabFixed" onclick="setMode('fixed')">Fixed-Time</button>
+      <button class="tab"        id="tabBoth"  onclick="setMode('both')">Compare</button>
+    </div>
+    <div class="btn-grid">
+      <button class="btn train" id="trainBtn" onclick="startTraining()">⚡ Train Agent</button>
+      <button class="btn danger" onclick="fullReset()">↺ Reset All</button>
+    </div>
+  </div>
+
+  <!-- SCENARIO -->
+  <div class="section">
+    <div class="section-title">Traffic Scenario</div>
+    <div class="tabs">
+      <button class="tab active" id="scPreset" onclick="switchScenTab('preset')">Preset</button>
+      <button class="tab"        id="scCustom" onclick="switchScenTab('custom')">Custom λ</button>
+    </div>
+
+    <div id="presetPanel">
+      <div class="field">
+        <label>Demand Scenario</label>
+        <select id="scenario" onchange="onScenario()">
+          <option value="low">Low Demand — λ = 0.10</option>
+          <option value="med" selected>Medium Demand — λ = 0.25</option>
+          <option value="high">High Demand — λ = 0.45</option>
+          <option value="asym">Asymmetric — North λ = 0.50</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="customPanel" style="display:none">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Set arrival rate λ per lane (veh/s). Stability requires λ &lt; μ = 1.0</div>
+      <div class="lambda-row"><div class="lane-dot" style="background:var(--N)"></div><label>N</label><input type="range" id="lN" min="0.05" max="0.90" step="0.05" value="0.25" oninput="onCustomL()"><div class="rv" id="lNv">0.25</div></div>
+      <div class="lambda-row"><div class="lane-dot" style="background:var(--S)"></div><label>S</label><input type="range" id="lS" min="0.05" max="0.90" step="0.05" value="0.25" oninput="onCustomL()"><div class="rv" id="lSv">0.25</div></div>
+      <div class="lambda-row"><div class="lane-dot" style="background:var(--E)"></div><label>E</label><input type="range" id="lE" min="0.05" max="0.90" step="0.05" value="0.25" oninput="onCustomL()"><div class="rv" id="lEv">0.25</div></div>
+      <div class="lambda-row"><div class="lane-dot" style="background:var(--W)"></div><label>W</label><input type="range" id="lW" min="0.05" max="0.90" step="0.05" value="0.25" oninput="onCustomL()"><div class="rv" id="lWv">0.25</div></div>
+    </div>
+  </div>
+
+  <!-- SPEED -->
+  <div class="section">
+    <div class="section-title">Simulation Speed</div>
+    <div class="range-row">
+      <span style="font-size:11px;color:var(--text2)">Speed</span>
+      <span class="range-val" id="speedVal">5×</span>
+    </div>
+    <input type="range" id="speed" min="1" max="20" value="5" oninput="document.getElementById('speedVal').textContent=this.value+'×'">
+  </div>
+
+  <!-- TRAINING PROGRESS -->
+  <div class="section">
+    <div class="section-title">Q-Learning Agent Training</div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)">
+      <span>Progress</span><span id="epText">0 / 1000 episodes</span>
+    </div>
+    <div class="train-bar-bg"><div class="train-bar-fill" id="trainBar" style="width:0%"></div></div>
+    <div class="train-stats-grid">
+      <div class="ts"><div class="ts-val" id="tsEp">0</div><div class="ts-lbl">Episodes</div></div>
+      <div class="ts"><div class="ts-val" id="tsStates">0</div><div class="ts-lbl">States</div></div>
+      <div class="ts"><div class="ts-val" id="tsRew">—</div><div class="ts-lbl">Avg Reward</div></div>
+    </div>
+  </div>
+
+  <!-- Q-TABLE VIS -->
+  <div class="section">
+    <div class="section-title">Q-Table (5⁴ × 24 = 15,000 entries)</div>
+    <div style="font-size:10px;color:var(--text2);margin-bottom:6px">Sample of learned Q-values — brighter = higher value</div>
+    <div class="qtable-grid" id="qtVis"></div>
+    <div style="font-size:10px;color:var(--text3);margin-top:6px">Table size: 5 queue levels × 4 lanes × 6 durations × 4 actions</div>
+  </div>
+
+  <!-- LP ALLOCATION -->
+  <div class="section">
+    <div class="section-title">LP Optimal Allocation</div>
+    <div style="font-size:10px;color:var(--text2);margin-bottom:8px">x*ᵢ = t_min + G_free × (qᵢ / Σq)</div>
+    <div id="lpAlloc" style="display:flex;flex-direction:column;gap:4px"></div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════
+     CENTER PANEL
+══════════════════════════ -->
+<div class="panel-center">
+  <div class="canvas-wrap">
+    <canvas id="road" width="500" height="500"></canvas>
+  </div>
+  <div class="legend-bar">
+    <div class="leg"><div class="leg-dot" style="background:var(--N)"></div>North</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--S)"></div>South</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--E)"></div>East</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--W)"></div>West</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--green);border-radius:50%"></div>Green</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--amber);border-radius:50%"></div>Yellow</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--red);border-radius:50%"></div>Red</div>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="histChart"></canvas>
+  </div>
+</div>
+
+<!-- ══════════════════════════
+     RIGHT PANEL
+══════════════════════════ -->
+<div class="panel-right">
+
+  <!-- METRICS -->
+  <div class="metrics-grid">
+    <div class="metric">
+      <div class="metric-lbl">RL Avg Wait</div>
+      <div class="metric-val" id="mRL">0</div>
+      <div class="metric-sub">veh/step</div>
+    </div>
+    <div class="metric">
+      <div class="metric-lbl">Fixed Avg Wait</div>
+      <div class="metric-val" id="mFixed">0</div>
+      <div class="metric-sub">veh/step</div>
+    </div>
+    <div class="metric">
+      <div class="metric-lbl">Cycles</div>
+      <div class="metric-val" id="mCycle">0</div>
+      <div class="metric-sub">completed</div>
+    </div>
+    <div class="metric">
+      <div class="metric-lbl">ε (explore)</div>
+      <div class="metric-val" id="mEps" style="font-size:18px">1.00</div>
+      <div class="metric-sub">ε-greedy</div>
+    </div>
+  </div>
+
+  <!-- IMPROVE BADGE -->
+  <div id="improveBadge" class="improve neutral">Run "Compare" mode after training</div>
+
+  <!-- QUEUE BARS -->
+  <div class="section-title" style="padding:0 16px 8px;font-size:9px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;font-family:'Space Mono',monospace">Queue Lengths</div>
+  <div class="qbars" id="queueBars"></div>
+
+  <!-- GREEN TIME PHASE BAR -->
+  <div class="phase-wrap">
+    <div style="font-size:9px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;font-family:'Space Mono',monospace;margin-bottom:6px">Green Time Distribution</div>
+    <div class="phase-bar" id="phaseBar">
+      <div class="phase-seg" style="background:var(--N)" id="psN">N</div>
+      <div class="phase-seg" style="background:var(--S)" id="psS">S</div>
+      <div class="phase-seg" style="background:var(--E)" id="psE">E</div>
+      <div class="phase-seg" style="background:var(--W)" id="psW">W</div>
+    </div>
+  </div>
+
+  <!-- QUEUE EQUATION MATH -->
+  <div class="math-box">
+    <div class="math-title">Queue Equation</div>
+    <div class="math-eq">q = q_old + λ·C − μ·x</div>
+    <div class="math-row"><div class="math-k">λ (arrival rate)</div><div class="math-v" id="mLambda">0.25</div></div>
+    <div class="math-row"><div class="math-k">μ (discharge rate)</div><div class="math-v">1.0 veh/s</div></div>
+    <div class="math-row"><div class="math-k">Stability: λ &lt; μ</div><div class="math-v" id="mStable" style="color:var(--green)">✓ Stable</div></div>
+    <div class="math-row"><div class="math-k">RL optimal x</div><div class="math-v" id="mOptX">—</div></div>
+    <div class="math-row"><div class="math-k">Total Q-updates</div><div class="math-v" id="mUpdates">0</div></div>
+  </div>
+
+  <!-- LP ALLOCATION -->
+  <div class="lp-box">
+    <div class="lp-title">LP Optimal Allocation</div>
+    <div class="lp-line dim">Minimize Z = Σ qᵢ·xᵢ</div>
+    <div class="lp-line dim">s.t. Σxᵢ = C, xᵢ∈[10,60]</div>
+    <div class="lp-line hi" style="margin-top:6px">x*ᵢ = t_min + G_free·(qᵢ/Σq)</div>
+    <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px" id="lpRight"></div>
+  </div>
+
+  <!-- RESULTS TABLE -->
+  <div style="padding:0 16px 6px;font-size:9px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;font-family:'Space Mono',monospace">Project Results</div>
+  <div class="res-table">
+    <div class="res-row hdr">
+      <div>Scenario</div><div>Fixed</div><div>RL</div><div>Gain</div>
+    </div>
+    <div class="res-row"><div>Low (λ=0.10)</div><div class="col-fixed">26.8</div><div class="col-rl">27.3</div><div class="col-imp">~</div></div>
+    <div class="res-row"><div>Medium (λ=0.25)</div><div class="col-fixed">3,969</div><div class="col-rl">2,512</div><div class="col-imp">36.7%</div></div>
+    <div class="res-row"><div>High (λ=0.45)</div><div class="col-fixed">40,537</div><div class="col-rl">4,726</div><div class="col-imp">88.3%</div></div>
+    <div class="res-row"><div>Asymmetric</div><div class="col-fixed">3,815</div><div class="col-rl">845</div><div class="col-imp">77.8%</div></div>
+  </div>
+
+  <!-- BELLMAN -->
+  <div class="math-box" style="margin-top:0">
+    <div class="math-title">Bellman Update</div>
+    <div class="math-eq" style="font-size:10px;line-height:1.7">Q(S,A) ← Q(S,A)<br>+ α[R + γ·maxQ(S',A') − Q(S,A)]</div>
+    <div class="math-row"><div class="math-k">α (learning rate)</div><div class="math-v">0.10</div></div>
+    <div class="math-row"><div class="math-k">γ (discount)</div><div class="math-v">0.95</div></div>
+    <div class="math-row"><div class="math-k">R (reward)</div><div class="math-v" id="mReward">—</div></div>
+    <div class="math-row"><div class="math-k">States visited</div><div class="math-v" id="mStatesV">0</div></div>
+  </div>
+
+</div>
+</div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════ */
+const SCENARIOS = {
+  low:  {L:[.10,.10,.10,.10]},
+  med:  {L:[.25,.25,.25,.25]},
+  high: {L:[.45,.45,.45,.45]},
+  asym: {L:[.50,.10,.10,.10]},
+};
+const LANE_COLS  = ['#2563EB','#059669','#D97706','#DC2626'];
+const LANE_NAMES = ['N','S','E','W'];
+const MU = 1, YELLOW = 3, TMIN = 10, TMAX = 60;
+const DURATIONS  = [10,20,30,40,50,60];
+const NUM_LANES  = 4, NUM_DUR = 6, NUM_LEVELS = 5;
+const TOTAL_ST   = Math.pow(NUM_LEVELS, NUM_LANES); // 625
+const TOTAL_ACT  = NUM_LANES * NUM_DUR;             // 24
+
+/* ═══════════════════════════════════════════
+   Q-TABLE
+═══════════════════════════════════════════ */
+let qTable = new Float32Array(TOTAL_ST * TOTAL_ACT).fill(0);
+let alpha=0.10, gamma=0.95, epsilon=1.0;
+let visitedStates = new Set();
+let isTraining=false, totalUpdates=0;
+
+function disc(q){ if(q===0)return 0; if(q<=3)return 1; if(q<=7)return 2; if(q<=14)return 3; return 4; }
+function stIdx(qs){ let i=0; for(let k=0;k<4;k++) i=i*NUM_LEVELS+disc(qs[k]); return i; }
+function actIdx(l,d){ return l*NUM_DUR+d; }
+function maxQ(si){ let b=-Infinity; for(let a=0;a<TOTAL_ACT;a++){const v=qTable[si*TOTAL_ACT+a];if(v>b)b=v;} return b; }
+
+function greedy(qs){
+  const si=stIdx(qs); let b=-Infinity,bl=0,bd=0;
+  for(let l=0;l<4;l++) for(let d=0;d<6;d++){
+    const v=qTable[si*TOTAL_ACT+actIdx(l,d)];
+    if(v>b){b=v;bl=l;bd=d;}
+  }
+  return [bl,bd];
+}
+
+function selectAct(qs){
+  if(Math.random()<epsilon)
+    return [Math.floor(Math.random()*4),Math.floor(Math.random()*6)];
+  return greedy(qs);
+}
+
+function updateQ(qs,l,di,reward,qsN){
+  const si=stIdx(qs),siN=stIdx(qsN),ai=actIdx(l,di);
+  visitedStates.add(si);
+  const old=qTable[si*TOTAL_ACT+ai];
+  qTable[si*TOTAL_ACT+ai]=old+alpha*(reward+gamma*maxQ(siN)-old);
+  totalUpdates++;
+}
+
+/* ═══════════════════════════════════════════
+   SIMULATION STEP
+═══════════════════════════════════════════ */
+function poisson(l){ let L=Math.exp(-l),k=0,p=1; do{k++;p*=Math.random();}while(p>L); return k-1; }
+
+function simStep(qs,l,di,lambdas){
+  const g=DURATIONS[di],qc=qs.slice(); let delay=0;
+  for(let t=0;t<g;t++){
+    qc[l]=Math.max(0,qc[l]-MU);
+    for(let i=0;i<4;i++) qc[i]=Math.max(0,qc[i]+poisson(lambdas[i]));
+    delay+=qc.reduce((a,b)=>a+b,0);
+  }
+  for(let t=0;t<YELLOW;t++){
+    for(let i=0;i<4;i++) qc[i]=Math.max(0,qc[i]+poisson(lambdas[i]));
+    delay+=qc.reduce((a,b)=>a+b,0);
+  }
+  return {nxt:qc,delay};
+}
+
+/* ═══════════════════════════════════════════
+   TRAINING
+═══════════════════════════════════════════ */
+const TRAIN_EP=1000, TRAIN_STEPS=60;
+
+function startTraining(){
+  if(isTraining)return;
+  isTraining=true; epsilon=1.0;
+  qTable.fill(0); visitedStates.clear(); totalUpdates=0;
+  document.getElementById('trainBtn').disabled=true;
+  document.getElementById('trainBtn').textContent='⏳ Training...';
+  document.getElementById('trainBadge').textContent='Training...';
+  document.getElementById('trainBadge').style.color='var(--amber)';
+  let ep=0,rewSum=0;
+  const lambdas=getLambdas();
+  function batch(){
+    const bs=50;
+    for(let b=0;b<bs&&ep<TRAIN_EP;b++,ep++){
+      let qs=[0,0,0,0];
+      for(let i=0;i<4;i++) qs[i]=Math.floor(Math.random()*10);
+      let er=0;
+      for(let s=0;s<TRAIN_STEPS;s++){
+        const [l,di]=selectAct(qs);
+        const {nxt,delay}=simStep(qs,l,di,lambdas);
+        const r=-delay;
+        updateQ(qs,l,di,r,nxt);
+        er+=r; qs=nxt;
+      }
+      rewSum+=er/TRAIN_STEPS;
+      epsilon=Math.max(0.01,epsilon*0.9960);
+    }
+    const pct=Math.round(ep/TRAIN_EP*100);
+    document.getElementById('trainBar').style.width=pct+'%';
+    document.getElementById('epText').textContent=ep+' / '+TRAIN_EP+' episodes';
+    document.getElementById('tsEp').textContent=ep;
+    document.getElementById('tsStates').textContent=visitedStates.size;
+    document.getElementById('tsRew').textContent=ep>0?Math.round(rewSum/ep):'—';
+    document.getElementById('mEps').textContent=epsilon.toFixed(2);
+    document.getElementById('epsBadge').textContent='ε = '+epsilon.toFixed(2);
+    updateQVis();
+    if(ep<TRAIN_EP){ setTimeout(batch,0); }
+    else{
+      isTraining=false;
+      document.getElementById('trainBtn').disabled=false;
+      document.getElementById('trainBtn').textContent='✓ Retrain';
+      document.getElementById('trainBtn').className='btn train done btn-full';
+      document.getElementById('trainBadge').textContent='Trained ✓';
+      document.getElementById('trainBadge').style.color='var(--green)';
+      epsilon=0.02;
+      document.getElementById('mEps').textContent=epsilon.toFixed(2);
+    }
+  }
+  batch();
+}
+
+/* ═══════════════════════════════════════════
+   Q-TABLE VISUALISER
+═══════════════════════════════════════════ */
+function initQVis(){
+  const el=document.getElementById('qtVis'); el.innerHTML='';
+  for(let i=0;i<25;i++){
+    const c=document.createElement('div'); c.className='qt-cell';
+    const b=document.createElement('div'); b.className='qt-bar'; b.id='qb'+i;
+    c.appendChild(b); el.appendChild(c);
+  }
+}
+function updateQVis(){
+  const slice=qTable.slice(0,25*TOTAL_ACT);
+  const mx=Math.max(...slice.map(Math.abs))||1;
+  for(let i=0;i<25;i++){
+    const v=Math.max(...Array.from({length:TOTAL_ACT},(_,a)=>qTable[i*TOTAL_ACT+a]));
+    const pct=Math.max(0,Math.min(100,(v/mx)*100));
+    const bar=document.getElementById('qb'+i);
+    if(bar){ bar.style.height=pct+'%'; bar.style.background=`rgba(217,56,30,${0.15+pct/100*0.6})`; }
+  }
+}
+initQVis();
+
+/* ═══════════════════════════════════════════
+   LP OPTIMAL ALLOCATION
+═══════════════════════════════════════════ */
+function computeLP(qs){
+  const total=qs.reduce((a,b)=>a+b,0);
+  if(total<1) return [20,20,20,20];
+  const gFree=Math.max(0,120-4*YELLOW-4*TMIN);
+  return qs.map(q=>Math.min(TMAX,Math.max(TMIN,Math.round(TMIN+gFree*(q/total)))));
+}
+
+function updateLPDisplay(qs){
+  const lp=computeLP(qs);
+  // left panel
+  const el=document.getElementById('lpAlloc'); el.innerHTML='';
+  LANE_NAMES.forEach((n,i)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:6px;font-size:10px;';
+    row.innerHTML=`<span style="width:6px;height:6px;border-radius:50%;background:${LANE_COLS[i]};display:inline-block;flex-shrink:0"></span>
+      <span style="color:var(--text2);flex:1">Lane ${n}</span>
+      <span style="font-family:Space Mono,monospace;color:var(--accent)">${lp[i]}s</span>`;
+    el.appendChild(row);
+  });
+  // right panel
+  const er=document.getElementById('lpRight'); er.innerHTML='';
+  LANE_NAMES.forEach((n,i)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;justify-content:space-between;font-size:10px;';
+    row.innerHTML=`<span style="color:var(--text2)">x*_${n}</span><span style="font-family:Space Mono,monospace;color:var(--purple)">${lp[i]}s</span>`;
+    er.appendChild(row);
+  });
+}
+
+/* ═══════════════════════════════════════════
+   LIVE SIMULATION STATE
+═══════════════════════════════════════════ */
+let scenario='med', mode='rl', useCustom=false;
+let customL=[.25,.25,.25,.25];
+let qRL=[0,0,0,0], qFX=[0,0,0,0];
+let cyRL=0,cyFX=0, delRL=0,delFX=0;
+let tickRL=0,tickFX=0;
+let histRL=[],histFX=[];
+let gtRL=[20,20,20,20];
+let curRL=0,curFX=0, durRL=2,tiRL=0,tiFX=0;
+let yelRL=false,yelFX=false;
+let stepAcc=0,lastT=0,animId=null;
+let lastReward=0;
+let chart=null;
+
+function getLambdas(){
+  if(useCustom) return [...customL];
+  return SCENARIOS[scenario].L;
+}
+
+function simTick(dt){
+  const sp=parseInt(document.getElementById('speed').value);
+  stepAcc+=dt*sp;
+  const steps=Math.floor(stepAcc/80);
+  if(steps<1)return;
+  stepAcc-=steps*80;
+  const L=getLambdas();
+
+  for(let s=0;s<steps;s++){
+    if(mode==='rl'||mode==='both'){
+      for(let i=0;i<4;i++) qRL[i]=Math.max(0,qRL[i]+poisson(L[i]));
+      if(!yelRL) qRL[curRL]=Math.max(0,qRL[curRL]-MU);
+      delRL+=qRL.reduce((a,b)=>a+b,0); tickRL++;
+      tiRL++;
+      const durSec=yelRL?YELLOW:DURATIONS[durRL];
+      if(tiRL>=durSec){
+        tiRL=0;
+        if(yelRL){
+          yelRL=false;
+          const [nl,nd]=selectAct(qRL);
+          curRL=nl; durRL=nd;
+          gtRL[curRL]=DURATIONS[durRL];
+          if(curRL===0){ cyRL++; histRL.push(Math.round(qRL.reduce((a,b)=>a+b,0)/4)); if(histRL.length>80)histRL.shift(); }
+        } else yelRL=true;
+        lastReward=-(qRL.reduce((a,b)=>a+b,0));
+      }
+    }
+    if(mode==='fixed'||mode==='both'){
+      for(let i=0;i<4;i++) qFX[i]=Math.max(0,qFX[i]+poisson(L[i]));
+      if(!yelFX) qFX[curFX]=Math.max(0,qFX[curFX]-MU);
+      delFX+=qFX.reduce((a,b)=>a+b,0); tickFX++;
+      tiFX++;
+      if(tiFX>=(yelFX?YELLOW:20)){
+        tiFX=0;
+        if(yelFX){ yelFX=false; curFX=(curFX+1)%4; if(curFX===0){ cyFX++; histFX.push(Math.round(qFX.reduce((a,b)=>a+b,0)/4)); if(histFX.length>80)histFX.shift(); }}
+        else yelFX=true;
+      }
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════
+   CANVAS DRAW
+═══════════════════════════════════════════ */
+const canvas=document.getElementById('road');
+const ctx=canvas.getContext('2d');
+const W=500,H=500,CX=250,CY=250,RW=70,BOX=86;
+
+function drawScene(){
+  ctx.clearRect(0,0,W,H);
+  // BG
+  ctx.fillStyle='#F0EEE9'; ctx.fillRect(0,0,W,H);
+  // Grid
+  ctx.strokeStyle='rgba(0,0,0,.04)'; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=25){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
+  for(let y=0;y<H;y+=25){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
+  // Roads
+  ctx.fillStyle='#D8D5CE';
+  ctx.fillRect(CX-RW/2,0,RW,H);
+  ctx.fillRect(0,CY-RW/2,W,RW);
+  // Road borders
+  ctx.strokeStyle='rgba(0,0,0,.08)'; ctx.lineWidth=1; ctx.setLineDash([]);
+  ctx.strokeRect(CX-RW/2,0,RW,H);
+  ctx.strokeRect(0,CY-RW/2,W,RW);
+  // Dashes
+  ctx.setLineDash([14,16]); ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=1.5;
+  [[CX,0,CX,CY-BOX/2],[CX,CY+BOX/2,CX,H],[0,CY,CX-BOX/2,CY],[CX+BOX/2,CY,W,CY]].forEach(([x1,y1,x2,y2])=>{
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  });
+  ctx.setLineDash([]);
+  // Center box
+  ctx.fillStyle='#E8E5DF';
+  ctx.beginPath();ctx.roundRect(CX-BOX/2,CY-BOX/2,BOX,BOX,8);ctx.fill();
+  ctx.strokeStyle='rgba(217,56,30,.25)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(CX-BOX/2,CY-BOX/2,BOX,BOX,8);ctx.stroke();
+
+  const q  = mode==='fixed'?qFX:qRL;
+  const cl = mode==='fixed'?curFX:curRL;
+  const yp = mode==='fixed'?yelFX:yelRL;
+  const gt = mode==='fixed'?[20,20,20,20]:gtRL;
+
+  // Cars
+  const CW=9,CH=14,GAP=18,MAX=10;
+  const drawCar=(x,y,w,h,col)=>{
+    ctx.fillStyle=col; ctx.globalAlpha=.85;
+    ctx.beginPath();ctx.roundRect(x,y,w,h,2);ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle='rgba(255,255,255,.25)';
+    ctx.fillRect(x+1,y+1,w-2,h*.28);
+    ctx.fillStyle='rgba(255,255,255,.12)';
+    ctx.fillRect(x+1,y+h*.7,w-2,h*.25);
+  };
+  for(let i=0;i<Math.min(q[0],MAX);i++){const y=CY-BOX/2-10-i*GAP;if(y<6)break;drawCar(CX-CW-4,y-CH,CW,CH,LANE_COLS[0]);}
+  for(let i=0;i<Math.min(q[1],MAX);i++){const y=CY+BOX/2+3+i*GAP;if(y>H-6)break;drawCar(CX+4,y,CW,CH,LANE_COLS[1]);}
+  for(let i=0;i<Math.min(q[2],MAX);i++){const x=CX+BOX/2+3+i*GAP;if(x>W-6)break;drawCar(x,CY-CW-4,CH,CW,LANE_COLS[2]);}
+  for(let i=0;i<Math.min(q[3],MAX);i++){const x=CX-BOX/2-12-i*GAP;if(x<6)break;drawCar(x-CH,CY+4,CH,CW,LANE_COLS[3]);}
+
+  // Traffic lights
+  const lpos=[
+    {x:CX-BOX/2-22,y:CY-BOX/2-22,lane:0},
+    {x:CX+BOX/2+6, y:CY+BOX/2+6, lane:1},
+    {x:CX+BOX/2+6, y:CY-BOX/2-22,lane:2},
+    {x:CX-BOX/2-22,y:CY+BOX/2+6, lane:3},
+  ];
+  lpos.forEach(({x,y,lane})=>{
+    const isG=lane===cl&&!yp, isY=lane===cl&&yp;
+    ctx.fillStyle='#FFFFFF';
+    ctx.beginPath();ctx.roundRect(x,y,17,17,4);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.12)';ctx.lineWidth=.5;
+    ctx.beginPath();ctx.roundRect(x,y,17,17,4);ctx.stroke();
+    const col=isG?'#059669':isY?'#D97706':'rgba(200,196,190,1)';
+    ctx.fillStyle=col;
+    ctx.beginPath();ctx.arc(x+8.5,y+8.5,5.5,0,Math.PI*2);ctx.fill();
+    if(isG||isY){
+      ctx.shadowColor=col;ctx.shadowBlur=10;
+      ctx.beginPath();ctx.arc(x+8.5,y+8.5,5.5,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;
+    }
+  });
+
+  // Green time labels
+  ctx.font='11px "Space Mono",monospace';
+  ctx.fillStyle='rgba(217,56,30,.6)';
+  ctx.textAlign='center';
+  ctx.fillText(gt[0]+'s',CX,18);
+  ctx.fillText(gt[1]+'s',CX,H-6);
+  ctx.textAlign='start';ctx.fillText(gt[2]+'s',W-30,CY-2);
+  ctx.textAlign='end';  ctx.fillText(gt[3]+'s',30,CY-2);
+
+  // Direction arrows
+  ctx.font='11px "Space Mono",monospace';ctx.fillStyle='rgba(0,0,0,.2)';ctx.textAlign='center';
+  ctx.fillText('↑',CX,36);ctx.fillText('↓',CX,H-20);
+  ctx.textAlign='start';ctx.fillText('←',W-20,CY+14);
+  ctx.textAlign='end';  ctx.fillText('→',20,CY+14);
+
+  // ε in corner
+  ctx.font='10px "Space Mono",monospace';ctx.fillStyle='rgba(217,56,30,.45)';
+  ctx.textAlign='start';ctx.fillText('ε='+epsilon.toFixed(2),8,H-8);
+
+  // Mode label
+  ctx.textAlign='right';ctx.fillStyle='rgba(0,0,0,.2)';
+  ctx.fillText(mode==='fixed'?'FIXED-TIME':mode==='both'?'COMPARE':'Q-LEARNING',W-8,H-8);
+}
+
+/* ═══════════════════════════════════════════
+   UI UPDATE
+═══════════════════════════════════════════ */
+function updateUI(){
+  const aRL  = tickRL>0?Math.round(delRL/tickRL/4):0;
+  const aFX  = tickFX>0?Math.round(delFX/tickFX/4):0;
+  document.getElementById('mRL').textContent=aRL;
+  document.getElementById('mFixed').textContent=aFX;
+  document.getElementById('mCycle').textContent=Math.max(cyRL,cyFX);
+  if(!isTraining){
+    document.getElementById('mEps').textContent=epsilon.toFixed(2);
+    document.getElementById('epsBadge').textContent='ε = '+epsilon.toFixed(2);
+  }
+
+  // Improve badge
+  const badge=document.getElementById('improveBadge');
+  if(mode==='both'&&aFX>0&&aRL>0){
+    const imp=Math.round((aFX-aRL)/aFX*100);
+    badge.textContent=imp>=0?`Q-Learning Improvement: ${imp}% ↑`:`Fixed-Time better by ${Math.abs(imp)}% ↓`;
+    badge.className='improve '+(imp>=0?'good':'bad');
+  } else {
+    badge.textContent='Run "Compare" mode after training to see improvement';
+    badge.className='improve neutral';
+  }
+
+  // Queue bars
+  const q=mode==='fixed'?qFX:qRL;
+  document.getElementById('queueBars').innerHTML=q.map((qv,i)=>`
+    <div class="qbar-row">
+      <div class="qbar-name" style="color:${LANE_COLS[i]}">${LANE_NAMES[i]}</div>
+      <div class="qbar-bg"><div class="qbar-fill" style="width:${Math.min(Math.round(qv/20*100),100)}%;background:${LANE_COLS[i]}"></div></div>
+      <div class="qbar-v">${Math.round(qv)}</div>
+    </div>`).join('');
+
+  // Phase bar
+  const gt=gtRL, tot=gt.reduce((a,b)=>a+b,0)||1;
+  LANE_NAMES.forEach((n,i)=>{
+    const el=document.getElementById('ps'+n);
+    const fr=gt[i]/tot; el.style.flex=fr;
+    el.textContent=fr>0.14?gt[i]+'s':'';
+  });
+
+  // Lambda display
+  const L=getLambdas();
+  document.getElementById('mLambda').textContent=L.every(l=>l===L[0])?L[0].toFixed(2):'mixed';
+  const maxL=Math.max(...L);
+  document.getElementById('mStable').textContent=maxL<MU?'✓ Stable':'✗ Unstable';
+  document.getElementById('mStable').style.color=maxL<MU?'var(--green)':'var(--red)';
+  document.getElementById('mOptX').textContent=mode==='rl'?DURATIONS[durRL]+'s':'fixed 20s';
+  document.getElementById('mUpdates').textContent=totalUpdates.toLocaleString();
+  document.getElementById('mReward').textContent=lastReward?Math.round(lastReward):'—';
+  document.getElementById('mStatesV').textContent=visitedStates.size;
+
+  // LP
+  updateLPDisplay(q);
+
+  // Chart
+  if(chart){
+    const maxL2=Math.max(histRL.length,histFX.length);
+    chart.data.labels=Array.from({length:maxL2},(_,i)=>i+1);
+    chart.data.datasets[0].data=[...histRL];
+    chart.data.datasets[1].data=[...histFX];
+    chart.update('none');
+  }
+}
+
+/* ═══════════════════════════════════════════
+   CHART
+═══════════════════════════════════════════ */
+function initChart(){
+  if(chart)chart.destroy();
+  chart=new Chart(document.getElementById('histChart'),{
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'Q-Learning',data:[],borderColor:'#D9381E',backgroundColor:'rgba(217,56,30,.06)',borderWidth:2,pointRadius:0,tension:.4,fill:true},
+      {label:'Fixed-Time',data:[],borderColor:'#9AA0AE',backgroundColor:'rgba(154,160,174,.04)',borderWidth:1.5,borderDash:[5,4],pointRadius:0,tension:.4,fill:true},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{labels:{color:'#5A5A6E',font:{size:10,family:'Space Mono'},boxWidth:16}}},
+      scales:{
+        x:{ticks:{maxTicksLimit:8,color:'#9A9AAE',font:{size:10,family:'Space Mono'}},grid:{color:'rgba(0,0,0,.04)'}},
+        y:{ticks:{color:'#9A9AAE',font:{size:10,family:'Space Mono'}},grid:{color:'rgba(0,0,0,.04)'},beginAtZero:true,title:{display:true,text:'Avg Wait (veh)',color:'#9A9AAE',font:{size:9,family:'Space Mono'}}}
+      }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════
+   MAIN LOOP
+═══════════════════════════════════════════ */
+function loop(ts){
+  if(!animId)return;
+  const dt=Math.min(ts-lastT,100); lastT=ts;
+  simTick(dt);
+  drawScene();
+  updateUI();
+  animId=requestAnimationFrame(loop);
+}
+
+function resetSim(){
+  qRL=[0,0,0,0];qFX=[0,0,0,0];
+  cyRL=0;cyFX=0;delRL=0;delFX=0;tickRL=0;tickFX=0;
+  histRL=[];histFX=[];gtRL=[20,20,20,20];
+  curRL=0;curFX=0;durRL=2;tiRL=0;tiFX=0;
+  yelRL=false;yelFX=false;stepAcc=0;lastReward=0;
+  if(animId)cancelAnimationFrame(animId);
+  animId=1;lastT=performance.now();
+  animId=requestAnimationFrame(loop);
+}
+
+function fullReset(){
+  qTable.fill(0);visitedStates.clear();
+  epsilon=1.0;totalUpdates=0;
+  document.getElementById('trainBar').style.width='0%';
+  document.getElementById('epText').textContent='0 / 1000 episodes';
+  document.getElementById('tsEp').textContent='0';
+  document.getElementById('tsStates').textContent='0';
+  document.getElementById('tsRew').textContent='—';
+  document.getElementById('trainBtn').textContent='⚡ Train Agent';
+  document.getElementById('trainBtn').className='btn train';
+  document.getElementById('trainBadge').textContent='Untrained';
+  document.getElementById('trainBadge').style.color='';
+  updateQVis();
+  resetSim();
+}
+
+function setMode(m){
+  mode=m;
+  ['RL','Fixed','Both'].forEach(x=>{
+    const t=document.getElementById('tab'+x);
+    if(t)t.classList.toggle('active',x.toLowerCase()===m||(x==='Both'&&m==='both')||(x==='Fixed'&&m==='fixed')||(x==='RL'&&m==='rl'));
+  });
+  document.getElementById('tabRL').classList.toggle('active',m==='rl');
+  document.getElementById('tabFixed').classList.toggle('active',m==='fixed');
+  document.getElementById('tabBoth').classList.toggle('active',m==='both');
+  document.getElementById('modeBadge').textContent=m==='rl'?'Q-Learning Mode':m==='fixed'?'Fixed-Time Mode':'Compare Mode';
+  resetSim();
+}
+
+function onScenario(){
+  scenario=document.getElementById('scenario').value;
+  useCustom=false; resetSim();
+}
+
+function switchScenTab(t){
+  document.getElementById('scPreset').classList.toggle('active',t==='preset');
+  document.getElementById('scCustom').classList.toggle('active',t==='custom');
+  document.getElementById('presetPanel').style.display=t==='preset'?'':'none';
+  document.getElementById('customPanel').style.display=t==='custom'?'':'none';
+  useCustom=t==='custom';
+  resetSim();
+}
+
+function onCustomL(){
+  ['N','S','E','W'].forEach((n,i)=>{
+    const v=parseFloat(document.getElementById('l'+n).value);
+    customL[i]=v;
+    document.getElementById('l'+n+'v').textContent=v.toFixed(2);
+  });
+  if(useCustom)resetSim();
+}
+
+/* ═══════════════════════════════════════════
+   KEYBOARD SHORTCUTS
+═══════════════════════════════════════════ */
+document.addEventListener('keydown',e=>{
+  if(e.key==='r'||e.key==='R') fullReset();
+  if(e.key==='t'||e.key==='T') startTraining();
+  if(e.key==='1') setMode('rl');
+  if(e.key==='2') setMode('fixed');
+  if(e.key==='3') setMode('both');
+});
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+initChart();
+resetSim();
+</script>
+</body>
+</html>
